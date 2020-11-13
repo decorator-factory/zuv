@@ -42,7 +42,7 @@ from lark import Lark, Transformer, v_args
 class ZuvTransformer(Transformer):
     @staticmethod
     def start(*stmts):
-        return zuv_ast.BlockExpression(list(stmts))
+        return zuv_ast.BlockExpression(list(stmts), implicit_return=False)
 
     # Utilities:
     @staticmethod
@@ -173,3 +173,11 @@ source3 = (
 print(source3)
 
 assert source2 == source3
+
+
+source_js = (
+    parser
+    .parse(source)
+    .to_js()  # type: ignore
+)
+print(source_js)
