@@ -1,5 +1,5 @@
 import json
-import oolang_ast as oa
+import zuv_ast
 
 source = R'''
 is_arg = (Array @is? t)...
@@ -9,11 +9,11 @@ is_arg = (Array @is? t)...
 Point = fn x y: { x, y }.
 
 MousePointerController = fn document:
-    [mx, my, dx, dy] = [0, 0, 0, 0]
+    $[mx, my, dx, dy] = [0, 0, 0, 0]
 
     document @add_event_listener "mousemove" (fn e:
-        [dx, dy] = [e->x @sub mx., e->y @sub my.]
-        [mx, my] = [e->x, e->y]
+        $[dx, dy] = [e->x @sub mx., e->y @sub my.]
+        $[mx, my] = [e->x, e->y]
     ).
 
     is_pressed = False
@@ -39,10 +39,10 @@ from lark import Lark, Transformer, v_args
 
 
 @v_args(inline=True)
-class OolangTransformer(Transformer):
+class ZuvTransformer(Transformer):
     @staticmethod
     def start(*stmts):
-        return oa.BlockExpression(list(stmts))
+        return zuv_ast.BlockExpression(list(stmts))
 
     # Utilities:
     @staticmethod
@@ -60,50 +60,50 @@ class OolangTransformer(Transformer):
     # Assignment:
     @staticmethod
     def lvalue_name(token):
-        return oa.LvalueName(token.value)
+        return zuv_ast.LvalueName(token.value)
 
     @staticmethod
     def lvalue_array(targets):
-        return oa.LvalueArray(targets)
+        return zuv_ast.LvalueArray(targets)
 
     @staticmethod
     def lvalue_table(targets):
-        return oa.LvalueTable(targets)
+        return zuv_ast.LvalueTable(targets)
 
     @staticmethod
     def assignment_stmt(target, expr):
-        return oa.Assignment(target, expr)
+        return zuv_ast.Assignment(target, expr)
 
     # Literals:
     @staticmethod
     def name_literal(token):
-        return oa.Name(token.value)
+        return zuv_ast.Name(token.value)
 
     @staticmethod
     def int_literal(token):
-        return oa.IntLiteral(int(token))
+        return zuv_ast.IntLiteral(int(token))
 
     @staticmethod
     def str_literal(token):
-        return oa.StrLiteral(json.loads(token))
+        return zuv_ast.StrLiteral(json.loads(token))
 
     @staticmethod
     def array_literal(exprs):
-        return oa.ArrayLiteral(exprs)
+        return zuv_ast.ArrayLiteral(exprs)
 
     # Table literals:
     @staticmethod
     def table_literal(entries):
-        return oa.TableLiteral(entries)
+        return zuv_ast.TableLiteral(entries)
 
     @staticmethod
     def table_literal_entry(key, value):
         if value is None:
-            return oa.TableEntry.KeyShorthand(key.value)
+            return zuv_ast.TableEntry.KeyShorthand(key.value)
         elif value == "()":
-            return oa.TableEntry.GetterShorthand(key.value)
+            return zuv_ast.TableEntry.GetterShorthand(key.value)
         else:
-            return oa.TableEntry.KeyValue(key.value, value)
+            return zuv_ast.TableEntry.KeyValue(key.value, value)
 
     @staticmethod
     def fn_parameters(*tokens):
@@ -111,23 +111,23 @@ class OolangTransformer(Transformer):
 
     @staticmethod
     def member_access(expr, identifier):
-        return oa.MemberAccess(expr, identifier.value)
+        return zuv_ast.MemberAccess(expr, identifier.value)
 
     @staticmethod
     def bare_method_call(expr, method_name, *args):
-        return oa.MethodCall(expr, method_name.value, list(args))
+        return zuv_ast.MethodCall(expr, method_name.value, list(args))
 
     @staticmethod
     def bare_function_call(function, *args):
-        return oa.FunctionCall(function, list(args))
+        return zuv_ast.FunctionCall(function, list(args))
 
     @staticmethod
     def singleton_function_call_expr(function):
-        return oa.FunctionCall(function, [])
+        return zuv_ast.FunctionCall(function, [])
 
     @staticmethod
     def bare_function_definition(parameters, *statements):
-        return oa.FunctionDefinition(parameters, oa.BlockExpression(list(statements)))
+        return zuv_ast.FunctionDefinition(parameters, zuv_ast.BlockExpression(list(statements)))
 
     # Chained method calls:
     @staticmethod
@@ -141,31 +141,31 @@ class OolangTransformer(Transformer):
 
     @staticmethod
     def single_chained_call(kind, method_name, *exprs):
-        return oa.SingleChainedCall(kind, method_name.value, list(exprs))
+        return zuv_ast.SingleChainedCall(kind, method_name.value, list(exprs))
 
     @staticmethod
     def chained_method_call_expr(subject, *calls):
-        return oa.ChainedMethodCall(subject, list(calls))
+        return zuv_ast.ChainedMethodCall(subject, list(calls))
 
 
 parser = Lark.open(
     "grammar.lark",
     rel_to=__file__,
-    parser="earley",  # TODO: resolve reduce/reduce collisions in LALR
+    parser="lalr",  # TODO: resolve reduce/reduce collisions in LALR
     debug=True,
     maybe_placeholders=True,
 )
 
 
 source2 = (
-    OolangTransformer()
+    ZuvTransformer()
     .transform(parser.parse(source))
     .as_source()
 )
 print(source2)
 
 source3 = (
-    OolangTransformer()
+    ZuvTransformer()
     .transform(parser.parse(source2))
     .as_source()
 )

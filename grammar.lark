@@ -25,8 +25,8 @@ AT: "@"
                   | lvalue_table
 
 lvalue_name: IDENTIFIER
-lvalue_array: "[" sep_by_plus{assignment_target, ","} "]"
-lvalue_table: "{" sep_by_plus{IDENTIFIER, ","} "}"
+lvalue_array: "$" "[" sep_by_plus{assignment_target, ","} "]"
+lvalue_table: "$" "{" sep_by_plus{IDENTIFIER, ","} "}"
 
 
 // Statements

@@ -160,7 +160,7 @@ class LvalueArray(AssignmentTarget):
     targets: List[AssignmentTarget]
 
     def _as_source_iter(self) -> AsSource:
-        yield (None, "[")
+        yield (None, "$[")
         for t in self.targets:
             yield from t._as_source_iter()
             yield (None, ", ")
@@ -172,7 +172,7 @@ class LvalueTable(AssignmentTarget):
     names: List[str]
 
     def _as_source_iter(self) -> AsSource:
-        yield (None, "{" + ", ".join(self.names) + "}")
+        yield (None, "${" + ", ".join(self.names) + "}")
 
 
 @dataclass
