@@ -154,20 +154,21 @@ parser = Lark.open(
     parser="lalr",  # TODO: resolve reduce/reduce collisions in LALR
     debug=True,
     maybe_placeholders=True,
+    transformer=ZuvTransformer(),
 )
 
 
 source2 = (
-    ZuvTransformer()
-    .transform(parser.parse(source))
-    .as_source()
+    parser
+    .parse(source)
+    .as_source()  # type: ignore
 )
 print(source2)
 
 source3 = (
-    ZuvTransformer()
-    .transform(parser.parse(source2))
-    .as_source()
+    parser
+    .parse(source2)
+    .as_source()  # type: ignore
 )
 print(source3)
 
