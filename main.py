@@ -85,8 +85,15 @@ class ZuvTransformer(Transformer):
         return zuv_ast.MemberAccess(expr, identifier.value)
 
     @staticmethod
-    def bare_method_call(expr, method_name, *args):
-        return zuv_ast.MethodCall(expr, method_name.value, list(args))
+    def bare_method_call(expr, method_name, colon, *args):
+        if colon is not None:
+            return zuv_ast.MethodCall(
+                expr,
+                method_name.value,
+                [zuv_ast.FunctionDefinition([], zuv_ast.BlockExpression(list(args)))]
+            )
+        else:
+            return zuv_ast.MethodCall(expr, method_name.value, list(args))
 
     @staticmethod
     def bare_function_call(function, *args):
@@ -111,8 +118,15 @@ class ZuvTransformer(Transformer):
             assert False, token.value
 
     @staticmethod
-    def single_chained_call(kind, method_name, *exprs):
-        return zuv_ast.SingleChainedCall(kind, method_name.value, list(exprs))
+    def single_chained_call(kind, method_name, colon, *args):
+        if colon is not None:
+            return zuv_ast.SingleChainedCall(
+                kind,
+                method_name.value,
+                [zuv_ast.FunctionDefinition([], zuv_ast.BlockExpression(list(args)))]
+            )
+        else:
+            return zuv_ast.SingleChainedCall(kind, method_name.value, list(args))
 
     @staticmethod
     def chained_method_call_expr(subject, *calls):
@@ -123,7 +137,6 @@ parser = Lark.open(
     "grammar.lark",
     rel_to=__file__,
     parser="lalr",  # TODO: resolve reduce/reduce collisions in LALR
-    debug=True,
     maybe_placeholders=True,
     transformer=ZuvTransformer(),
 )
