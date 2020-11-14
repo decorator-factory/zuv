@@ -58,6 +58,15 @@ class AssignmentTarget(AstElement):
     pass
 
 
+def var_prefix_for(stmt):
+    if (isinstance(stmt, Assignment)
+        and not isinstance(stmt.target, LvalueNameNonlocal)
+    ):
+        return "var "
+    else:
+        return ""
+
+
 @dataclass
 class BlockExpression(Expression):
     statements: List[Statement]
@@ -68,14 +77,16 @@ class BlockExpression(Expression):
         result = "{ "
         if self.implicit_return:
             for stmt in self.statements[:-1]:
+                result += var_prefix_for(stmt)
                 result += stmt.to_js(ctx) + "; "
             for stmt in self.statements[-1:]:
                 if isinstance(stmt, Assignment):
-                    result += stmt.to_js(ctx) + ";"
+                    result += var_prefix_for(stmt) + stmt.to_js(ctx) + ";"
                 else:
-                    result += "return (" + stmt.to_js(ctx) + "); "
+                    result += "return (" + var_prefix_for(stmt) + stmt.to_js(ctx) + "); "
         else:
             for stmt in self.statements:
+                result += var_prefix_for(stmt)
                 result += stmt.to_js(ctx) + "; "
         result += "}"
         ctx.boxed = ctx.boxed.parent  # type: ignore
@@ -223,7 +234,7 @@ class LvalueName(AssignmentTarget):
         if not ctx.boxed.can_local_name_be_used(self.name):
             raise TypeError(f"Cannot use name {self.name} as local here.")
         ctx.boxed.local_names.add(self.name)
-        return "var " + self.name.replace("?", "__QMARK")
+        return self.name.replace("?", "__QMARK")
 
     def _as_source_iter(self) -> AsSource:
         yield (None, self.name)
@@ -280,11 +291,7 @@ class Assignment(Statement):
     expression: Expression
 
     def to_js(self, ctx):
-        if isinstance(self.target, (LvalueArray, LvalueTable)):
-            prefix = "var "
-        else:
-            prefix = ""
-        return prefix + self.target.to_js(ctx) + " = " + self.expression.to_js(ctx) + " "
+        return self.target.to_js(ctx) + " = " + self.expression.to_js(ctx) + " "
 
     def _as_source_iter(self) -> AsSource:
         yield from self.target._as_source_iter()
