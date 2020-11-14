@@ -8,7 +8,7 @@ sep_by_plus{expr, separator}: (expr separator)* expr separator?
 // Tokens
 _NL: /\r?\n/
 _FN: /fn/
-IDENTIFIER: /(?!fn\b)(?![0-9?])[_a-zA-Z0-9?]+/
+IDENTIFIER: /(?!(?:fn|outer)\b)(?![0-9?])[_a-zA-Z0-9?]+/
 INTEGER: /[+-]?(?:0|[1-9][0-9]*)/
 STRING: /"(?:\\.|[^"])*"/
 _ELLIPSIS: "..."
@@ -17,13 +17,16 @@ PIPE: "|>"
 _ARROW: "->"
 BARE_PARENS: "()"
 AT: "@"
+_OUTER: "outer"
 
 
 // Assignment target
 ?assignment_target: lvalue_name
+                  | lvalue_name_nonlocal
                   | lvalue_array
                   | lvalue_table
 
+lvalue_name_nonlocal: _OUTER IDENTIFIER
 lvalue_name: IDENTIFIER
 lvalue_array: "$" "[" sep_by_plus{assignment_target, ","} "]"
 lvalue_table: "$" "{" sep_by_plus{IDENTIFIER, ","} "}"

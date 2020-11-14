@@ -1,39 +1,6 @@
 import json
+from typing import Any
 import zuv_ast
-
-source = R'''
-is_arg = (Array @is? t)...
-            @if (fn: (print: "yes"))
-            @else (fn: (print: "no")).
-
-Point = fn x y: { x, y }.
-
-MousePointerController = fn document:
-    $[mx, my, dx, dy] = [0, 0, 0, 0]
-
-    document @add_event_listener "mousemove" (fn e:
-        $[dx, dy] = [e->x @sub mx., e->y @sub my.]
-        $[mx, my] = [e->x, e->y]
-    ).
-
-    is_pressed = False
-
-    on_press = Event!
-    document @add_event_listener "mousedown" (fn e:
-        is_pressed = True
-        on_press @emit { x e->x, y e->y }.).
-
-    on_release = Event!
-    document @add_event_listener "mousedown" (fn e:
-        is_pressed = True
-        on_press @emit { x e->x, y e->y }.).
-
-    { x(), y(), dx(), dy(), is_pressed(), on_press, on_release }.
-'''
-
-
-
-
 
 from lark import Lark, Transformer, v_args
 
@@ -58,6 +25,10 @@ class ZuvTransformer(Transformer):
         return list(args)
 
     # Assignment:
+    @staticmethod
+    def lvalue_name_nonlocal(token):
+        return zuv_ast.LvalueNameNonlocal(token.value)
+
     @staticmethod
     def lvalue_name(token):
         return zuv_ast.LvalueName(token.value)
@@ -158,26 +129,12 @@ parser = Lark.open(
 )
 
 
-source2 = (
-    parser
-    .parse(source)
-    .as_source()  # type: ignore
-)
-print(source2)
+if __name__ == "__main__":
+    import sys
 
-source3 = (
-    parser
-    .parse(source2)
-    .as_source()  # type: ignore
-)
-print(source3)
-
-assert source2 == source3
-
-
-source_js = (
-    parser
-    .parse(source)
-    .to_js()  # type: ignore
-)
-print(source_js)
+    with open(sys.argv[1], "r") as file:
+        ast: Any = parser.parse(file.read())
+        assert isinstance(ast, zuv_ast.AstElement)
+        print(ast.to_js(zuv_ast.Box(zuv_ast.JsContext(
+            None, set(), set()
+        ))))

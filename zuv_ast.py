@@ -1,13 +1,34 @@
 from dataclasses import dataclass
-from typing import Iterator, List, Literal, Optional, Tuple, Union
+from typing import Iterator, List, Literal, Optional, Set, Tuple, Union, Generic, TypeVar
 from sum_type import SumType
+
+
+T = TypeVar("T")
+
+
+class Box(Generic[T]):
+    def __init__(self, value: T):
+        self.boxed = value
+
+
+@dataclass
+class JsContext:
+    parent: Optional["JsContext"]
+    nonlocal_names: Set[str]
+    local_names: Set[str]
+
+    def can_local_name_be_used(self, name: str) -> bool:
+        return name not in self.nonlocal_names
+
+    def can_outer_name_be_used(self, name: str) -> bool:
+        return name not in self.local_names
 
 
 # the _as_source_iter method yields (indent_level?, string) parts
 AsSource = Iterator[Tuple[Optional[int], str]]
 
 class AstElement:
-    def to_js(self) -> str:
+    def to_js(self, ctx: Box[JsContext]) -> str:
         return self.as_source()
 
     def _as_source_iter(self) -> AsSource:
@@ -42,17 +63,22 @@ class BlockExpression(Expression):
     statements: List[Statement]
     implicit_return: bool = True
 
-    def to_js(self):
+    def to_js(self, ctx: Box[JsContext]):
+        ctx.boxed = JsContext(ctx.boxed, set(), set())
         result = "{ "
         if self.implicit_return:
             for stmt in self.statements[:-1]:
-                result += stmt.to_js() + "; "
+                result += stmt.to_js(ctx) + "; "
             for stmt in self.statements[-1:]:
-                result += "const __rv__ = (" + stmt.to_js() + "); return __rv__; "
+                if isinstance(stmt, Assignment):
+                    result += stmt.to_js(ctx) + ";"
+                else:
+                    result += "return (" + stmt.to_js(ctx) + "); "
         else:
             for stmt in self.statements:
-                result += stmt.to_js() + "; "
+                result += stmt.to_js(ctx) + "; "
         result += "}"
+        ctx.boxed = ctx.boxed.parent  # type: ignore
         return result
 
     def _as_source_iter(self) -> AsSource:
@@ -74,8 +100,8 @@ class BlockExpression(Expression):
 class ExpressionStatement(Statement):
     expression: Expression
 
-    def to_js(self):
-        return self.expression.to_js() + "; "
+    def to_js(self, ctx):
+        return self.expression.to_js(ctx) + "; "
 
     def _as_source_iter(self) -> AsSource:
         yield from self.expression._as_source_iter()
@@ -85,7 +111,7 @@ class ExpressionStatement(Statement):
 class Name(AstElement):
     value: str
 
-    def to_js(self):
+    def to_js(self, ctx):
         return self.value.replace("?", "__QMARK")
 
     def _as_source_iter(self) -> AsSource:
@@ -112,8 +138,8 @@ class StrLiteral(AstElement):
 class ArrayLiteral(AstElement):
     elements: List[AstElement]
 
-    def to_js(self):
-        return "[" + ", ".join(e.to_js() for e in self.elements) + "]"
+    def to_js(self, ctx):
+        return "[" + ", ".join(e.to_js(ctx) for e in self.elements) + "]"
 
     def _as_source_iter(self) -> AsSource:
         if self.elements == []:
@@ -153,10 +179,10 @@ def render_table_entry(e: TableEntry) -> AsSource:
     else:
         assert False
 
-def table_entry_to_js(e: TableEntry) -> str:
+def table_entry_to_js(e: TableEntry, ctx: Box[JsContext]) -> str:
     if isinstance(e, TableEntry.KeyValue):
         [k, v] = e
-        return k + ": " + v.to_js()
+        return k + ": " + v.to_js(ctx)
     elif isinstance(e, TableEntry.KeyShorthand):
         [k] = e
         return k
@@ -171,8 +197,8 @@ def table_entry_to_js(e: TableEntry) -> str:
 class TableLiteral(AstElement):
     entries: List[TableEntry]
 
-    def to_js(self):
-        return "({" + ", ".join(table_entry_to_js(e) for e in self.entries) + "})"
+    def to_js(self, ctx):
+        return "({" + ", ".join(table_entry_to_js(e, ctx) for e in self.entries) + "})"
 
     def _as_source_iter(self) -> AsSource:
         if self.entries == []:
@@ -193,19 +219,41 @@ class TableLiteral(AstElement):
 class LvalueName(AssignmentTarget):
     name: str
 
-    def to_js(self):
-        return self.name.replace("?", "__QMARK")
+    def to_js(self, ctx: Box[JsContext]):
+        if not ctx.boxed.can_local_name_be_used(self.name):
+            raise TypeError(f"Cannot use name {self.name} as local here.")
+        ctx.boxed.local_names.add(self.name)
+        return "var " + self.name.replace("?", "__QMARK")
 
     def _as_source_iter(self) -> AsSource:
         yield (None, self.name)
 
 
 @dataclass
+class LvalueNameNonlocal(AssignmentTarget):
+    name: str
+
+    def to_js(self, ctx: Box[JsContext]):
+        if not ctx.boxed.can_outer_name_be_used(self.name):
+            raise TypeError(f"Cannot use name {self.name} as outer here.")
+        ctx.boxed.nonlocal_names.add(self.name)
+        return self.name.replace("?", "__QMARK")
+
+    def _as_source_iter(self) -> AsSource:
+        yield (None, "outer ")
+        yield (None, self.name)
+
+
+
+@dataclass
 class LvalueArray(AssignmentTarget):
     targets: List[AssignmentTarget]
 
-    def to_js(self):
-        return "[" + ", ".join(t.to_js() for t in self.targets) + "]"
+    def to_js(self, ctx):
+        for t in self.targets:
+            if isinstance(t, LvalueNameNonlocal):
+                raise TypeError("Cannot use nonlocal name in array destructuring.")
+        return "[" + ", ".join(t.to_js(ctx) for t in self.targets) + "]"
 
     def _as_source_iter(self) -> AsSource:
         yield (None, "$[")
@@ -219,7 +267,7 @@ class LvalueArray(AssignmentTarget):
 class LvalueTable(AssignmentTarget):
     names: List[str]
 
-    def to_js(self):
+    def to_js(self, ctx):
         return "{" + ", ".join(self.names) + "}"
 
     def _as_source_iter(self) -> AsSource:
@@ -231,8 +279,12 @@ class Assignment(Statement):
     target: AssignmentTarget
     expression: Expression
 
-    def to_js(self):
-        return self.target.to_js() + " = " + self.expression.to_js() + " "
+    def to_js(self, ctx):
+        if isinstance(self.target, (LvalueArray, LvalueTable)):
+            prefix = "var "
+        else:
+            prefix = ""
+        return prefix + self.target.to_js(ctx) + " = " + self.expression.to_js(ctx) + " "
 
     def _as_source_iter(self) -> AsSource:
         yield from self.target._as_source_iter()
@@ -245,8 +297,8 @@ class MemberAccess(Expression):
     expression: Expression
     member_name: str
 
-    def to_js(self):
-        return self.expression.to_js() + "." + self.member_name.replace("?", "__QMARK")
+    def to_js(self, ctx):
+        return self.expression.to_js(ctx) + "." + self.member_name.replace("?", "__QMARK")
 
     def _as_source_iter(self) -> AsSource:
         yield from self.expression._as_source_iter()
@@ -260,13 +312,13 @@ class MethodCall(Expression):
     method_name: str
     arguments: List[Expression]
 
-    def to_js(self):
+    def to_js(self, ctx):
         return (
-            self.expression.to_js()
+            self.expression.to_js(ctx)
             + "."
             + self.method_name.replace("?", "__QMARK")
             + "("
-            + ", ".join(arg.to_js() for arg in self.arguments)
+            + ", ".join(arg.to_js(ctx) for arg in self.arguments)
             + ")"
         )
 
@@ -287,21 +339,21 @@ class SingleChainedCall(AstElement):
     method_name: str
     arguments: List[Expression]
 
-    def to_js(self):
+    def to_js(self, ctx):
         if self.kind == "@":
             return (
-                "__result__ = __root__."
+                "__x = __s."
                 + self.method_name.replace("?", "__QMARK")
                 + "("
-                + ", ".join(arg.to_js() for arg in self.arguments)
+                + ", ".join(arg.to_js(ctx) for arg in self.arguments)
                 + ");"
             )
         elif self.kind == "|>":
             return (
-                "__result__ = __result__."
+                "__x = __x."
                 + self.method_name.replace("?", "__QMARK")
                 + "("
-                + ", ".join(arg.to_js() for arg in self.arguments)
+                + ", ".join(arg.to_js(ctx) for arg in self.arguments)
                 + ");"
             )
         else:
@@ -320,14 +372,13 @@ class ChainedMethodCall(Expression):
     subject: Expression
     calls: List[SingleChainedCall]
 
-    def to_js(self):
+    def to_js(self, ctx):
         return (
-            "((__subject__) => { "
-            + " let __root__ = __subject__; "
-            + " let __result__ = __subject__; "
-            + "; ".join(call.to_js() for call in self.calls)
-            + "; return __result__ })("
-            + self.subject.to_js()
+            "((__s) => { "
+            + "var __x = __s; "
+            + "; ".join(call.to_js(ctx) for call in self.calls)
+            + "; return __x })("
+            + self.subject.to_js(ctx)
             + ")"
         )
 
@@ -352,12 +403,12 @@ class FunctionDefinition(Expression):
     parameters: List[str]
     body: Expression
 
-    def to_js(self):
+    def to_js(self, ctx):
         return (
             "("
             + ", ".join(p.replace("?", "__QMARK") for p in self.parameters)
             + ") => "
-            + self.body.to_js()
+            + self.body.to_js(ctx)
         )
 
     def _as_source_iter(self) -> AsSource:
@@ -375,12 +426,12 @@ class FunctionCall(Expression):
     function: Expression
     arguments: List[Expression]
 
-    def to_js(self):
+    def to_js(self, ctx):
         return (
             "("
-            + self.function.to_js()
+            + self.function.to_js(ctx)
             + ")("
-            + ", ".join(arg.to_js() for arg in self.arguments)
+            + ", ".join(arg.to_js(ctx) for arg in self.arguments)
             + ")"
         )
 
