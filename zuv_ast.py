@@ -133,6 +133,9 @@ class Name(AstElement):
 class IntLiteral(AstElement):
     value: int
 
+    def to_js(self, ctx):
+        return f"Integer({self.value})"
+
     def _as_source_iter(self) -> AsSource:
         yield (None, str(self.value))
 
@@ -141,8 +144,14 @@ class IntLiteral(AstElement):
 class StrLiteral(AstElement):
     value: str
 
+    def to_js(self, ctx):
+        return f"String({self._encode()})"
+
+    def _encode(self):
+        return '"' + "".join("\\" + c if c in {"\\" , '"'} else c for c in self.value) + '"'
+
     def _as_source_iter(self) -> AsSource:
-        yield (None, '"' + "".join("\\" + c if c in {"\\" , '"'} else c for c in self.value) + '"')
+        yield (None, self._encode())
 
 
 @dataclass
@@ -150,7 +159,7 @@ class ArrayLiteral(AstElement):
     elements: List[AstElement]
 
     def to_js(self, ctx):
-        return "[" + ", ".join(e.to_js(ctx) for e in self.elements) + "]"
+        return "Array([" + ", ".join(e.to_js(ctx) for e in self.elements) + "])"
 
     def _as_source_iter(self) -> AsSource:
         if self.elements == []:
