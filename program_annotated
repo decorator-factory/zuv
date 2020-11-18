@@ -1,0 +1,108 @@
+// The Problem function accepts an object with keys `name` and `tests`
+// and creates a Problem object.
+Problem = fn{name, tests}:
+    // `__repr__` is a special method that is invoked to create
+    // a 'technical' representation of an object
+
+    // This __repr__ function calls the `concat` function
+    // to join a few elements as strings. The `repr` function invokes
+    // a `__repr__` method on an object, but it has a little bit more logic,
+    // so use it instead of just calling the `__repr__` method.
+    __repr__ = fn: concat:
+        "(Problem: {name " repr: name. ", tests" repr: tests. "})".
+    .
+
+    // Function calls can be written with a dot or with ( and ):
+    //   concat: "(Problem: {name " repr: name. ", tests" repr: tests. "})".
+    //   (concat: "(Problem: {name " repr: name. ", tests" repr: tests. "})")
+    // Same with method calls:
+    //   console @log "hello".
+    //   (console @log "hello")
+    // Same with function definitions:
+    //   fn x: x @add 2. .
+    //   (fn x: x @add 2.)
+    //   (fn x: (x @add 2))
+
+    // The `check` function could've been written as this:
+    // check = fn f:
+    //     tests @forEach (fn [input, expected]:
+    //         output = (f: input)
+    //         (assert: (eq: expected output) {input, expected, output}))..
+    // There's a shorthand for passing a function to a method/function call:
+
+    check = fn f:
+        tests @forEach![input, expected]:
+            output = (f: input)
+            (assert: (eq: expected output) {input, expected, output})..
+
+    // The following is syntax sugar for this object:
+    // { id (fn: id), name (fn: name), tests (fn: tests),
+    //   __repr__ __repr__, check check }
+    { id(), name(), tests(), __repr__, check }.
+// the last evaluated expression is returned from the function
+
+
+// booleans have an `else` method that accepts a function and only executes
+// it if the boolean is `False`
+// `(bool @else: something)` is the same as `(bool @else!: something)`
+// which in turn is `(bool @else: (fn: something))`
+assert = fn bool message: (bool @else: (panic: "Assertion failed: " message)).
+
+
+ProblemStore = fn:
+    // `function!` is the syntax for calling a function with no arguments
+    store = Table!  // `Table` is a mapping type (aka hash map)
+    store @set 1 (Problem: {
+        name "FizzBuzz",
+        tests [
+            [1, "1"],
+            [2, "2"],
+            [3, "Fizz"],
+            [4, "4"],
+            [5, "Buzz"],
+            [6, "Fizz"],
+            [7, "7"],
+            [8, "8"],
+            [9, "Fizz"],
+            [10, "Buzz"],
+            [11, "11"],
+            [12, "Fizz"],
+            [13, "13"],
+            [14, "14"],
+            [15, "FizzBuzz"],
+            [16, "16"]
+        ]
+    }).
+
+    findById = fn id:
+        (store @has id)...
+            @else: (panic: "ID not found: " id)
+            @if: (store @get id)..
+    // The ...-syntax is for calling a few methods on the same object.
+    // The result of the last call is returned
+
+    {findById}.
+
+
+// As you can see, the way to create an object with some state is to
+// create a closure.
+
+
+fizzBuzz = fn n:
+    s = ""
+    (eq: (n @mod 3) 0)
+        @if: <=s = (concat: s "Fizz").
+    (eq: (n @mod 5) 0)
+        @if: <=s = (concat: s "Buzz").
+    (eq: s "")
+        @if: <=s = (concat: s (String: n)).
+    s.
+// '<=s = something' means "instead of creating a local `s` variable, assign
+// `something` to a variable in the outer scope"
+
+
+// Here we'll create a ProblemStore, find a problem and check our solution
+store = ProblemStore!
+problem = store @findById 1.
+console @debug problem.
+problem @check fizzBuzz.

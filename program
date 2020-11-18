@@ -1,0 +1,62 @@
+Problem = fn{name, tests}:
+    __repr__ = fn: concat:
+        "(Problem: {name " repr: name. ", tests" repr: tests. "})"..
+
+    check = fn f:
+        tests @forEach![input, expected]:
+            output = (f: input)
+            (assert: (eq: expected output) {input, expected, output})..
+
+    { id(), name(), tests(), __repr__, check }.
+
+
+assert = fn bool message: (bool @else: (panic: "Assertion failed: " message)).
+
+
+ProblemStore = fn:
+    store = Table!
+    store @set 1 (Problem: {
+        name "FizzBuzz",
+        tests [
+            [1, "1"],
+            [2, "2"],
+            [3, "Fizz"],
+            [4, "4"],
+            [5, "Buzz"],
+            [6, "Fizz"],
+            [7, "7"],
+            [8, "8"],
+            [9, "Fizz"],
+            [10, "Buzz"],
+            [11, "11"],
+            [12, "Fizz"],
+            [13, "13"],
+            [14, "14"],
+            [15, "FizzBuzz"],
+            [16, "16"]
+        ]
+    }).
+
+    findById = fn id:
+        (store @has id)...
+            @else: (panic: "ID not found: " id)
+            @if: (store @get id)..
+
+    {findById}.
+
+
+fizzBuzz = fn n:
+    s = ""
+    (eq: (n @mod 3) 0)
+        @if: <=s = (concat: s "Fizz").
+    (eq: (n @mod 5) 0)
+        @if: <=s = (concat: s "Buzz").
+    (eq: s "")
+        @if: <=s = (concat: s (String: n)).
+    s.
+
+
+store = ProblemStore!
+problem = store @findById 1.
+console @debug problem.
+problem @check fizzBuzz.
