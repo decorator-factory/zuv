@@ -27,9 +27,9 @@ _OUTER: "<="
                   | lvalue_table
 
 lvalue_name_nonlocal: _OUTER IDENTIFIER
-lvalue_name: IDENTIFIER
-lvalue_array: "$" "[" sep_by_plus{assignment_target, ","} "]"
-lvalue_table: "$" "{" sep_by_plus{IDENTIFIER, ","} "}"
+lvalue_name.2: IDENTIFIER
+lvalue_array.2: "[" sep_by_plus{assignment_target, ","} "]"
+lvalue_table.2: "{" sep_by_plus{IDENTIFIER, ","} "}"
 
 
 // Statements
@@ -66,13 +66,13 @@ assignment_stmt.2: assignment_target "=" expression ";"?
 
 ?paren_expr: "(" expression ")"
 
-name_literal: IDENTIFIER
+name_literal.1: IDENTIFIER
 
 int_literal: INTEGER
 
 str_literal: STRING
 
-fn_parameters: IDENTIFIER*
+fn_parameters: function_parameter*
 bare_function_definition: _FN fn_parameters ":" statement*
 ?function_definition_expr: bare_function_definition  "."
 ?paren_function_definition_expr: "(" bare_function_definition ")"
@@ -83,7 +83,10 @@ bare_function_call: expr_no_method_call ":" expression+
 
 singleton_function_call_expr: expr_no_method_call "!"
 
-shorthand_args: ["!" sep_by{IDENTIFIER, ","}] ":"
+?function_parameter: IDENTIFIER -> param_name
+                   | "{" sep_by{IDENTIFIER, ","} "}" -> param_object
+                   | "[" sep_by{IDENTIFIER, ","} "]" -> param_array
+shorthand_args: ("!" function_parameter*)? ":"
 
 bare_method_call: expr_no_method_call "@" IDENTIFIER [shorthand_args] stmt_no_method_call*
 ?method_call_expr: bare_method_call "."
@@ -93,8 +96,8 @@ chain: AT | PIPE
 single_chained_call: chain IDENTIFIER [shorthand_args] stmt_no_method_call*
 chained_method_call_expr: expr_no_method_call _ELLIPSIS single_chained_call+ "."
 
-table_literal_entry: IDENTIFIER [expression|BARE_PARENS]
-table_literal: "{" sep_by{table_literal_entry, ","} "}"
+table_literal_entry.1: IDENTIFIER [expression|BARE_PARENS]
+table_literal.1: "{" sep_by{table_literal_entry, ","} "}"
 
 array_literal: "[" sep_by{expression, ","} "]"
 

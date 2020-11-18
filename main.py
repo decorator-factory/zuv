@@ -77,19 +77,28 @@ class ZuvTransformer(Transformer):
             return zuv_ast.TableEntry.KeyValue(key.value, value)
 
     @staticmethod
-    def fn_parameters(*tokens):
-        return [t.value for t in tokens]
+    def fn_parameters(*params):
+        return list(params)
 
     @staticmethod
     def member_access(expr, identifier):
         return zuv_ast.MemberAccess(expr, identifier.value)
 
     @staticmethod
-    def shorthand_args(param_names):
-        if param_names is None:
-            return []
-        else:
-            return param_names
+    def shorthand_args(*params):
+        return list(params)
+
+    @staticmethod
+    def param_name(name):
+        return zuv_ast.NamedParameter(str(name))
+
+    @staticmethod
+    def param_object(names):
+        return zuv_ast.ObjectParameter(names)
+
+    @staticmethod
+    def param_array(names):
+        return zuv_ast.ArrayParameter(names)
 
     @staticmethod
     def bare_method_call(expr, method_name, shorthand_args, *args):
@@ -143,7 +152,7 @@ class ZuvTransformer(Transformer):
 parser = Lark.open(
     "grammar.lark",
     rel_to=__file__,
-    parser="lalr",  # TODO: resolve reduce/reduce collisions in LALR
+    parser="lalr",
     maybe_placeholders=True,
     transformer=ZuvTransformer(),
 )

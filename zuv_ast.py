@@ -58,6 +58,10 @@ class AssignmentTarget(AstElement):
     pass
 
 
+class FunctionParameter(AstElement):
+    pass
+
+
 def var_prefix_for(stmt):
     if (isinstance(stmt, Assignment)
         and not isinstance(stmt.target, LvalueNameNonlocal)
@@ -276,7 +280,7 @@ class LvalueArray(AssignmentTarget):
         return "[" + ", ".join(t.to_js(ctx) for t in self.targets) + "]"
 
     def _as_source_iter(self) -> AsSource:
-        yield (None, "$[")
+        yield (None, "[")
         for t in self.targets:
             yield from t._as_source_iter()
             yield (None, ", ")
@@ -291,7 +295,7 @@ class LvalueTable(AssignmentTarget):
         return "{" + ", ".join(self.names) + "}"
 
     def _as_source_iter(self) -> AsSource:
-        yield (None, "${" + ", ".join(self.names) + "}")
+        yield (None, "{" + ", ".join(self.names) + "}")
 
 
 @dataclass
@@ -306,6 +310,47 @@ class Assignment(Statement):
         yield from self.target._as_source_iter()
         yield (None, " = ")
         yield from self.expression._as_source_iter()
+
+
+@dataclass
+class NamedParameter(FunctionParameter):
+    name: str
+
+    def to_js(self, ctx):
+        return self.name.replace("?", "__QMARK")
+
+    def _as_source_iter(self) -> AsSource:
+        yield (None, self.name)
+
+
+@dataclass
+class ObjectParameter(FunctionParameter):
+    names: List[str]
+
+    def to_js(self, ctx):
+        return "{" + ", ".join(name.replace("?", "__QMARK") for name in self.names) + "}"
+
+    def _as_source_iter(self) -> AsSource:
+        yield (None, "{")
+        for name in self.names:
+            yield (None, name)
+            yield (None, ",")
+        yield (None, "}")
+
+
+@dataclass
+class ArrayParameter(FunctionParameter):
+    names: List[str]
+
+    def to_js(self, ctx):
+        return "[" + ", ".join(name.replace("?", "__QMARK") for name in self.names) + "]"
+
+    def _as_source_iter(self) -> AsSource:
+        yield (None, "[")
+        for name in self.names:
+            yield (None, name)
+            yield (None, ",")
+        yield (None, "]")
 
 
 @dataclass
@@ -416,13 +461,13 @@ class ChainedMethodCall(Expression):
 
 @dataclass
 class FunctionDefinition(Expression):
-    parameters: List[str]
+    parameters: List[FunctionParameter]
     body: Expression
 
     def to_js(self, ctx):
         return (
             "("
-            + ", ".join(p.replace("?", "__QMARK") for p in self.parameters)
+            + ", ".join(p.to_js(ctx) for p in self.parameters)
             + ") => "
             + self.body.to_js(ctx)
         )
@@ -431,7 +476,8 @@ class FunctionDefinition(Expression):
         yield (None, "(")
         yield (None, "fn")
         for param in self.parameters:
-            yield (None, " " + param)
+            yield (None, " ")
+            yield from param._as_source_iter()
         yield (None, ": ")
         yield from self.body._as_source_iter()
         yield (None, ")")
