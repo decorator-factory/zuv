@@ -12,7 +12,7 @@ IDENTIFIER: /(?!(?:fn|outer)\b)(?![0-9])[_a-zA-Z0-9?]+/
 INTEGER: /[+-]?(?:0|[1-9][0-9]*)/
 STRING: /"(?:\\.|[^"])*"/
 _ELLIPSIS: "..."
-COMMENT: /#.*/
+COMMENT: /\/\/.*/
 PIPE: "|>"
 _ARROW: "->"
 BARE_PARENS: "()"
