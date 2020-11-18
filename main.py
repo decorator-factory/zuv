@@ -85,12 +85,19 @@ class ZuvTransformer(Transformer):
         return zuv_ast.MemberAccess(expr, identifier.value)
 
     @staticmethod
-    def bare_method_call(expr, method_name, colon, *args):
-        if colon is not None:
+    def shorthand_args(param_names):
+        if param_names is None:
+            return []
+        else:
+            return param_names
+
+    @staticmethod
+    def bare_method_call(expr, method_name, shorthand_args, *args):
+        if shorthand_args is not None:
             return zuv_ast.MethodCall(
                 expr,
                 method_name.value,
-                [zuv_ast.FunctionDefinition([], zuv_ast.BlockExpression(list(args)))]
+                [zuv_ast.FunctionDefinition(shorthand_args, zuv_ast.BlockExpression(list(args)))]
             )
         else:
             return zuv_ast.MethodCall(expr, method_name.value, list(args))
@@ -118,12 +125,12 @@ class ZuvTransformer(Transformer):
             assert False, token.value
 
     @staticmethod
-    def single_chained_call(kind, method_name, colon, *args):
-        if colon is not None:
+    def single_chained_call(kind, method_name, shorthand_args, *args):
+        if shorthand_args is not None:
             return zuv_ast.SingleChainedCall(
                 kind,
                 method_name.value,
-                [zuv_ast.FunctionDefinition([], zuv_ast.BlockExpression(list(args)))]
+                [zuv_ast.FunctionDefinition(shorthand_args, zuv_ast.BlockExpression(list(args)))]
             )
         else:
             return zuv_ast.SingleChainedCall(kind, method_name.value, list(args))

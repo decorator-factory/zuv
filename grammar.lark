@@ -66,7 +66,7 @@ assignment_stmt: assignment_target "=" expression
 
 ?paren_expr: "(" expression ")"
 
-name_literal.2: IDENTIFIER
+name_literal: IDENTIFIER
 
 int_literal: INTEGER
 
@@ -83,7 +83,7 @@ bare_function_call: expr_no_method_call ":" expression+
 
 singleton_function_call_expr: expr_no_method_call "!"
 
-?shorthand_args.1: sep_by{IDENTIFIER, ","} ":"
+shorthand_args: ["!" sep_by{IDENTIFIER, ","}] ":"
 
 bare_method_call: expr_no_method_call "@" IDENTIFIER [shorthand_args] stmt_no_method_call*
 ?method_call_expr: bare_method_call "."
