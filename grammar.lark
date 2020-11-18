@@ -8,7 +8,7 @@ sep_by_plus{expr, separator}: (expr separator)* expr separator?
 // Tokens
 _NL: /\r?\n/
 _FN: /fn/
-IDENTIFIER: /(?!(?:fn|outer)\b)(?![0-9?])[_a-zA-Z0-9?]+/
+IDENTIFIER: /(?!(?:fn|outer)\b)(?![0-9])[_a-zA-Z0-9?]+/
 INTEGER: /[+-]?(?:0|[1-9][0-9]*)/
 STRING: /"(?:\\.|[^"])*"/
 _ELLIPSIS: "..."
@@ -17,7 +17,7 @@ PIPE: "|>"
 _ARROW: "->"
 BARE_PARENS: "()"
 AT: "@"
-_OUTER: "outer"
+_OUTER: "<="
 
 
 // Assignment target
@@ -39,7 +39,7 @@ lvalue_table: "$" "{" sep_by_plus{IDENTIFIER, ","} "}"
 ?stmt_no_method_call: assignment_stmt
                     | expr_no_method_call
 
-assignment_stmt: assignment_target "=" expression
+assignment_stmt.2: assignment_target "=" expression ";"?
 
 
 // Expressions
